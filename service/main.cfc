@@ -133,6 +133,7 @@ component output='false' {
 				AND (( :parentTypeName ) IS Null OR pt.name = ( :parentTypeName ))
 				AND (( :parentTypeId ) IS Null OR pt.id = ( :parentTypeId ))
 			GROUP BY o.id, p.name, o.name, ot.name
+			ORDER BY o.name ASC
 		");
 		return local.queryService.execute().getResult();
 	}
@@ -141,7 +142,7 @@ component output='false' {
 		transaction {        
     	try {        
 				local.queryService = new Query();
-				local.queryService.addParam(name = 'name', value = arguments.name, cfsqltype = 'cf_sql_varchar');
+				local.queryService.addParam(name = 'name', value = trim(arguments.name), cfsqltype = 'cf_sql_varchar');
 				local.queryService.addParam(name = 'type', value = arguments.type, cfsqltype = 'cf_sql_integer');
 				local.queryService.addParam(name = 'parent', value = arguments.parent, cfsqltype = 'cf_sql_integer');
 				local.queryService.setSQL("

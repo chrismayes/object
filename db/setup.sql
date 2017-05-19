@@ -60,6 +60,3 @@ ALTER TABLE [dbo].[object_join] CHECK CONSTRAINT [FK_object_join_object1]
 --DROP TABLE object_join
 --DROP TABLE object
 --DROP TABLE type
-
-
-select * from type

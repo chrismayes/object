@@ -1,3 +1,12 @@
+<!---
+	ToDo:
+		edit object
+		search before create - use existing obj as child
+		link obj to additional parent
+		Alternate names for object (EG. vitamin B3 or Niacin)
+		parent/child notes (many possible) type? direction?
+--->
+
 <!--- Setup --->
 <cfparam name="url.o" default="" /><!--- object --->
 <cfparam name="url.p" default="" /><!--- parent --->
