@@ -68,10 +68,12 @@
 <!--- Get path objects --->
 <cfset aPathObjects = application.s.main.getPathObjects(url.path) />
 
-<!--- Output objects --->
+
+
+<!--- ********VIEWS********* --->
 <cfoutput>
 
-	<!--- Path To Object --->
+	<!--- VIEW: Path To Object --->
 	<cfset newPath = "" />
 	<cfloop from="1" to="#arrayLen(aPathObjects)#" index="i">
 		<cfif aPathObjects[i].id eq 1>
@@ -87,15 +89,20 @@
 		</cfif>
 		<cfset newPath = listAppend(newPath, aPathObjects[i].id) />
 	</cfloop>
+	
+	<!--- Export --->
+	<div style="float:right; position:relative">
+		<a href="export.cfm">Export</a>
+	</div>
 
-	<!--- Object Details --->
+	<!--- VIEW: Object Details --->
 	<cfif url.p neq 1>
 		<hr />
 		ID = #parentObjectData.id#<br />
 		Name = #parentObjectData.name#<br />
 	</cfif>
 
-	<!--- Object's Children --->	
+	<!--- VIEW: Object's Children --->	
 	<hr />
 	<cfif qObjects.recordCount>
 		<h3>Objects</h3>
@@ -127,7 +134,7 @@
 		</table>
 
 
-	<!--- Create New Objects --->
+	<!--- VIEW: Create New Objects --->
 	<hr />
 	</cfif>
 	<h3>Create Object</h3>
