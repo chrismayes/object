@@ -1,10 +1,10 @@
 <!---
 	ToDo:
 		edit object
+		edit releationship
 		search before create - use existing obj as child
 		link obj to additional parent
-		Alternate names for object (EG. vitamin B3 or Niacin)
-		parent/child notes (many possible) type? direction?
+		option to have alternative names for same object
 --->
 
 <!--- Setup --->
@@ -20,7 +20,7 @@
 </cfif>
 <cfset currentQueryString = "" />
 <cfloop collection="#url#" item="key">
-	<cfif len(url[key]) AND NOT listFindNoCase("view,delete", key)>
+	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete", key)>
 		<cfset currentQueryString = listAppend(currentQueryString, "#lcase(key)#=#urlEncodedFormat(url[key])#", "&") />
 	</cfif>
 </cfloop>
@@ -37,7 +37,14 @@
 
 <!--- View object --->
 <cfif isDefined("url.view") AND isNumeric(url.view)>
-	<cfset objectData = application.s.main.getObjectData(url.view)>
+	<cfset objectData = application.s.main.getObjectMetaData(url.view)>
+	<cfset relationshipData = application.s.main.getObjectJoinMetaData(url.view, url.p)>
+</cfif>
+
+<!--- Edit object --->
+<cfif isDefined("url.edit") AND isNumeric(url.edit)>
+	<cfset editObjectData = application.s.main.getObjectMetaData(url.edit)>
+	<cfset editRelationshipData = application.s.main.getObjectJoinMetaData(url.edit, url.p)>
 </cfif>
 
 <!--- Delete an object --->
@@ -53,16 +60,23 @@
 
 <!--- Get objects --->
 <cfset parentObjectData = application.s.main.getObjectData(url.p)>
+<cfset parentObjectMetaData = application.s.main.getObjectMetaData(url.p)>
+<cfif url.p neq 1 AND listLen(url.path) gte 2>
+	<cfset objectRelationshipData = application.s.main.getObjectJoinMetaData(url.p, listGetAt(url.path, listLen(url.path)-1))>
+</cfif>
 <cfset qTypes = application.s.main.getTypes() />
 <cfset qObjects = application.s.main.getObjects(object = url.o, parent = url.p, objectType = url.ot, parentType = url.pt) />
 <cfset qObjectsWithLinks = qObjects />
 <cfset queryAddColumn(qObjectsWithLinks, "view", "varchar", []) />
+<cfset queryAddColumn(qObjectsWithLinks, "edit", "varchar", []) />
 <cfset queryAddColumn(qObjectsWithLinks, "delete", "varchar", []) />
 <cfloop query="qObjects">
 	<cfset theLink = "<a href=""?p=#id#&parentName=#urlEncodedFormat(qObjects.object[qObjects.currentRow])#&path=#url.path#"">#qObjects.object[qObjects.currentRow]#</a>" />
 	<cfset querySetCell(qObjectsWithLinks, "object", theLink, qObjects.currentRow) /> 
 	<cfset viewLink = "<a href=""?#currentQueryString#&view=#qObjects.id[qObjects.currentRow]#"">View</a>" />
 	<cfset querySetCell(qObjectsWithLinks, "view", viewLink, qObjects.currentRow) /> 
+	<cfset editLink = "<a href=""?#currentQueryString#&edit=#qObjects.id[qObjects.currentRow]#"">Edit</a>" />
+	<cfset querySetCell(qObjectsWithLinks, "edit", editLink, qObjects.currentRow) /> 
 	<cfif qObjects.children[qObjects.currentRow] eq 0>
 		<cfset deleteLink = "<a href=""?#currentQueryString#&delete=#qObjects.id[qObjects.currentRow]#"">Delete</a>" />
 	<cfelse>
@@ -71,7 +85,7 @@
 	<cfset querySetCell(qObjectsWithLinks, "delete", deleteLink, qObjects.currentRow) /> 
 </cfloop>
 <cfset output = application.queryToTable(qObjectsWithLinks,	[
-	{object: "Name"}, {type: "Description"}, {children: "Count"}, {view: "View"}, {delete: "Delete"}
+	{object: "Name"}, {type: "Description"}, {children: "Count"}, {view: "View"}, {edit: "Edit"}, {delete: "Delete"}
 ]) />
 
 <!--- Get path objects --->
@@ -107,8 +121,45 @@
 	<!--- VIEW: Object Details --->
 	<cfif url.p neq 1>
 		<hr />
-		ID = #parentObjectData.id#<br />
-		Name = #parentObjectData.name#<br />
+		<cfif isDefined("objectRelationshipData") AND NOT structIsEmpty(objectRelationshipData)>
+			<td width="20">
+			</td>
+			<td valign="top">
+				<b>Object Data:</b><br />
+				ID: #parentObjectMetaData.id#<br />
+				Name: #parentObjectMetaData.name#<br />
+				<cfloop collection="#parentObjectMetaData.metadata#" item="key">
+					<cfif len(key)>
+						#key#:
+						<cfif isArray(parentObjectMetaData.metadata[key])>
+							<div style="display: inline-block; vertical-align: top;">
+								<cfloop from="1" to="#arrayLen(parentObjectMetaData.metadata[key])#" index="i">
+									#parentObjectMetaData.metadata[key][i]#<br />
+								</cfloop>
+							</div><br>
+						<cfelse>
+							#parentObjectMetaData.metadata[key]#<br />
+						</cfif>
+					</cfif>
+				</cfloop>
+				<br />
+				<b>Relationship Data:</b><br />
+				<cfloop collection="#objectRelationshipData.metadata#" item="key">
+					<cfif len(key)>
+						#key#:
+						<cfif isArray(objectRelationshipData.metadata[key])>
+							<div style="display: inline-block; vertical-align: top;">
+								<cfloop from="1" to="#arrayLen(objectRelationshipData.metadata[key])#" index="i">
+									#objectRelationshipData.metadata[key][i]#<br>
+								</cfloop>
+							</div><br>
+						<cfelse>
+							#objectRelationshipData.metadata[key]#<br>
+						</cfif>
+					</cfif>
+				</cfloop>
+			</td>
+		</cfif>
 	</cfif>
 
 	<!--- VIEW: Object's Children --->	
@@ -121,14 +172,55 @@
 					#output#
 				</td>
 				<!--- View Object --->
-				<cfif isDefined("objectData") AND objectData.recordCount>
+				<cfif isDefined("objectData") AND NOT structIsEmpty(objectData)>
 					<td width="20">
 					</td>
 					<td valign="top">
 						<b>Object Data:</b><br />
-						ID = #objectData.id#<br />
-						Name = #objectData.name#<br /><br />
+						ID: #objectData.id#<br />
+						Name: #objectData.name#<br />
+						<cfloop collection="#objectData.metadata#" item="key">
+							<cfif len(key)>
+								#key#:
+								<cfif isArray(objectData.metadata[key])>
+									<div style="display: inline-block; vertical-align: top;">
+										<cfloop from="1" to="#arrayLen(objectData.metadata[key])#" index="i">
+											#objectData.metadata[key][i]#<br />
+										</cfloop>
+									</div><br />
+								<cfelse>
+									#objectData.metadata[key]#<br />
+								</cfif>
+							</cfif>
+						</cfloop>
+						<br />
+						<b>Relationship Data:</b><br />
+						<cfloop collection="#relationshipData.metadata#" item="key">
+							<cfif len(key)>
+								#key#:
+								<cfif isArray(relationshipData.metadata[key])>
+									<div style="display: inline-block; vertical-align: top;">
+										<cfloop from="1" to="#arrayLen(relationshipData.metadata[key])#" index="i">
+											#relationshipData.metadata[key][i]#<br />
+										</cfloop>
+									</div><br />
+								<cfelse>
+									#relationshipData.metadata[key]#<br />
+								</cfif>
+							</cfif>
+						</cfloop>
+						<br />
 						<a href="?#currentQueryString#">Clear View</a>
+					</td>
+				</cfif>
+				<!--- Edit Object --->
+				<cfif isDefined("editObjectData") AND NOT structIsEmpty(editObjectData)>
+					<td width="20">
+					</td>
+					<td valign="top">
+						<b>Edit Object:</b><br />
+						ID: #editObjectData.id#<br />
+						Name: #editObjectData.name#<br />
 					</td>
 				</cfif>
 				<!--- Delete Object --->

@@ -11,6 +11,16 @@ component output='false' {
 		return local.queryService.execute().getResult();
 	}
 
+	public query function getJoinTypes() {
+		local.queryService = new Query();
+		local.queryService.setSQL("
+			SELECT id, name
+			FROM join_type
+			ORDER BY name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
 	public array function getPathObjects(required string path) {
 		local.queryService = new Query();
 		local.queryService.addParam(name = 'path', value = arguments.path, cfsqltype = 'cf_sql_integer', list=true);
@@ -72,11 +82,39 @@ component output='false' {
 		local.queryService = new Query();
 		local.queryService.addParam(name = 'id', value = arguments.id, cfsqltype = 'cf_sql_integer');
 		local.queryService.setSQL("
-			SELECT id, name
-			FROM object
-			WHERE id = ( :id )
+			SELECT o.id, o.name
+			FROM object o
+			WHERE o.id = ( :id )
 		");
 		return local.queryService.execute().getResult();
+	}
+
+	public struct function getObjectMetaData(required numeric id) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.id, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT o.id, o.name, m.display_name AS [key], v.value
+			FROM object o
+			LEFT JOIN meta m ON m.object_id = o.id
+			LEFT JOIN value v ON v.meta_id = m.id
+			WHERE o.id = ( :id )
+		");
+		return valueQueryToStruct(local.queryService.execute().getResult());
+	}
+
+	public struct function getObjectJoinMetaData(required numeric objectId, required numeric parentId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT oj.id, m.display_name AS [key], v.value
+			FROM object_join oj
+			LEFT JOIN join_meta m ON m.object_join_id = oj.id
+			LEFT JOIN join_value v ON v.join_meta_id = m.id
+			WHERE oj.child_id = ( :objectId )
+				AND oj.parent_id = ( :parentId )
+		");
+		return valueQueryToStruct(local.queryService.execute().getResult());
 	}
 
 	public query function getObjects(
@@ -138,7 +176,7 @@ component output='false' {
 		return local.queryService.execute().getResult();
 	}
 
-	public boolean function setObject(required string name, required numeric type, required numeric parent) {
+	public boolean function setObject(required string name, required numeric type, required numeric parent, numeric joinType = 1) {
 		transaction {        
     	try {        
 				local.queryService = new Query();
@@ -155,21 +193,43 @@ component output='false' {
 				");
 				local.newObject = local.queryService.execute().getResult();
 				local.queryService.addParam(name = 'child', value = local.newObject.id, cfsqltype = 'cf_sql_integer');
+				local.queryService.addParam(name = 'joinType', value = arguments.joinType, cfsqltype = 'cf_sql_integer');
 				local.queryService.setSQL("
-					INSERT INTO object_join (parent_id, child_id)
+					INSERT INTO object_join (parent_id, child_id, join_type_id)
 					VALUES (
 						( :parent ),
-						( :child )
+						( :child ),
+						( :joinType )
 					)
 				");
 				local.queryService.execute().getResult();
-    		transactionCommit();        
+    		transactionCommit();
 				return true;
-    	} catch(any e) {        
-    		transactionRollback();        
+    	} catch(any e) {
+    		transactionRollback();
 				return false;
-    	}        
-    }        
+    	}
+    }
 	}
 
+	//PRIVATE FUNCTIONS
+	public struct function valueQueryToStruct(required query q) {
+		local.s = {};
+		if(arguments.q.recordCount) {
+			structInsert(local.s, 'id', arguments.q.id);
+			if(isDefined("arguments.q.name")) structInsert(local.s, 'name', arguments.q.name);
+			structInsert(local.s, 'metadata', {});
+			for(local.item in arguments.q) {
+				if(structKeyExists(local.s.metadata, local.item.key)) {
+					local.existingValue = local.s.metadata[local.item.key];
+					if(isArray(local.existingValue)) arrayAppend(local.existingValue, local.item.value);
+					else local.existingValue = [local.s.metadata[local.item.key], local.item.value];
+					local.s.metadata[local.item.key] = local.existingValue;
+				}
+				else structInsert(local.s.metadata, local.item.key, local.item.value);
+			}
+		}
+		return local.s;
+	}
+	
 }

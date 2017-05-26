@@ -13,6 +13,7 @@ component {
 
 			//Internal Functions
 			application.queryToTable = queryToTable;
+			application.escapeSQL = escapeSQL;
 
 			//Services
 			for(local.i=1; local.i<=arrayLen(local.aServices); local.i++) {
@@ -36,6 +37,11 @@ component {
   }
   
   //Internal Functions
+  private string function escapeSQL(required string sql) {
+  	local.escapedSql = replace(sql, "'", "''", "ALL");
+  	return local.escapedSql;
+  }
+
   private string function queryToTable(required query q, required array columns) {
 		local.tableHeader = "<tr>";
 		for(local.i=1; local.i <= arrayLen(arguments.columns); local.i++) {
