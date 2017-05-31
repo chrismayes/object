@@ -9,6 +9,8 @@ DELETE FROM object_join
 DELETE FROM join_type
 DELETE FROM object
 DELETE FROM type
+DELETE FROM content
+
 
 /* Select statements for checking data after import:
 SELECT * FROM type
@@ -19,10 +21,20 @@ SELECT * FROM join_meta
 SELECT * FROM meta
 SELECT * FROM join_value
 SELECT * FROM value
+SELECT * FROM content
 */
 " />
 
 <!--- Tables --->
+<cfset qContent = application.s.data.getAllContent() />
+<cfset output &= crlf & "--Table: content" & crlf />
+<cfset output &= "SET IDENTITY_INSERT content ON" & crlf />
+<cfloop query="qContent">
+	<!--- ToDo: Add blobs from file dir --->
+	<cfset output &= "INSERT INTO content (id, name, description, content, format, zipped, search) VALUES (#qContent.id#, '#application.escapeSQL(qContent.name)#', '#application.escapeSQL(qContent.description)#', NULL, '#application.escapeSQL(qContent.format)#', #qContent.zipped#, '#application.escapeSQL(qContent.search)#')" & crlf />
+</cfloop>
+<cfset output &= "SET IDENTITY_INSERT content OFF" & crlf />
+
 <cfset qTypes = application.s.data.getAllTypes() />
 <cfset output &= crlf & "--Table: type" & crlf />
 <cfloop query="qTypes">

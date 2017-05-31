@@ -1,5 +1,15 @@
 component output='false' {
 
+	public query function getAllContent() {
+		local.queryService = new Query();
+		local.queryService.setSQL("
+			SELECT *
+			FROM content
+			ORDER BY id ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
 	public query function getAllJoinMetas() {
 		local.queryService = new Query();
 		local.queryService.setSQL("

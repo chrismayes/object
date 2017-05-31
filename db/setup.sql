@@ -1,5 +1,24 @@
 -- ***** TABLES *****
 
+--CONTENT
+CREATE TABLE [dbo].[content](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[name] [nvarchar](max) NOT NULL,
+	[description] [nvarchar](max) NULL,
+	[content] [varbinary](max) NOT NULL,
+	[format] [nvarchar](50) NOT NULL,
+	[zipped] [bit] NOT NULL,
+	[search] [nvarchar](max) NULL,
+ CONSTRAINT [PK_content] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+ALTER TABLE [dbo].[content] ADD  CONSTRAINT [DF_content_zipped]  DEFAULT ((0)) FOR [zipped]
+
+
+
 --TYPE
 CREATE TABLE [dbo].[type](
 	[id] [int] NOT NULL,
@@ -9,6 +28,7 @@ CREATE TABLE [dbo].[type](
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
 
 
 --OBJECT
@@ -25,6 +45,7 @@ CREATE TABLE [dbo].[object](
 ALTER TABLE [dbo].[object]  WITH CHECK ADD  CONSTRAINT [FK_object_type] FOREIGN KEY([type_id])
 REFERENCES [dbo].[type] ([id])
 ALTER TABLE [dbo].[object] CHECK CONSTRAINT [FK_object_type]
+
 
 
 --META
@@ -54,15 +75,20 @@ CREATE TABLE [dbo].[value](
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[meta_id] [int] NOT NULL,
 	[value] [nvarchar](max) NULL,
+	[content_id] [int] NULL,
  CONSTRAINT [PK_value] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
+ALTER TABLE [dbo].[value]  WITH CHECK ADD  CONSTRAINT [FK_value_content] FOREIGN KEY([content_id])
+REFERENCES [dbo].[content] ([id])
+ALTER TABLE [dbo].[value] CHECK CONSTRAINT [FK_value_content]
 ALTER TABLE [dbo].[value]  WITH CHECK ADD  CONSTRAINT [FK_value_meta] FOREIGN KEY([meta_id])
 REFERENCES [dbo].[meta] ([id])
 ALTER TABLE [dbo].[value] CHECK CONSTRAINT [FK_value_meta]
+
 
 
 --JOIN_TYPE
@@ -74,6 +100,7 @@ CREATE TABLE [dbo].[join_type](
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
 
 
 --OBJECT_JOIN
@@ -97,6 +124,7 @@ ALTER TABLE [dbo].[object_join] CHECK CONSTRAINT [FK_object_join_object]
 ALTER TABLE [dbo].[object_join]  WITH CHECK ADD  CONSTRAINT [FK_object_join_object1] FOREIGN KEY([child_id])
 REFERENCES [dbo].[object] ([id])
 ALTER TABLE [dbo].[object_join] CHECK CONSTRAINT [FK_object_join_object1]
+
 
 
 --JOIN_META
@@ -125,12 +153,15 @@ CREATE TABLE [dbo].[join_value](
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[join_meta_id] [int] NOT NULL,
 	[value] [nvarchar](max) NULL,
+	[content_id] [int] NULL,
  CONSTRAINT [PK_join_value] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
+ALTER TABLE [dbo].[join_value]  WITH CHECK ADD  CONSTRAINT [FK_join_value_content] FOREIGN KEY([content_id])
+REFERENCES [dbo].[content] ([id])
+ALTER TABLE [dbo].[join_value] CHECK CONSTRAINT [FK_join_value_content]
 ALTER TABLE [dbo].[join_value]  WITH CHECK ADD  CONSTRAINT [FK_join_value_join_meta] FOREIGN KEY([join_meta_id])
 REFERENCES [dbo].[join_meta] ([id])
 ALTER TABLE [dbo].[join_value] CHECK CONSTRAINT [FK_join_value_join_meta]
@@ -160,12 +191,14 @@ INSERT INTO value(meta_id, value) VALUES(1, 'This is the first object created in
 
 
 -- ***** RESET *****
---DROP TABLE join_value
---DROP TABLE join_meta
---DROP TABLE object_join
---DROP TABLE join_type
---DROP TABLE value
---DROP TABLE meta
---DROP TABLE object
---DROP TABLE type
-
+/*
+DROP TABLE join_value
+DROP TABLE join_meta
+DROP TABLE object_join
+DROP TABLE join_type
+DROP TABLE value
+DROP TABLE meta
+DROP TABLE object
+DROP TABLE type
+DROP TABLE content
+*/
