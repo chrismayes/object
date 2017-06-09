@@ -1,5 +1,63 @@
 component output='false' {
 
+	public boolean function deleteObjectMetaFields(objectId) {
+		deleteObjectMetaData(arguments.objectId);
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			DELETE FROM meta
+			WHERE object_id = ( :id )
+		");
+		local.queryService.execute();
+		return true;
+	}
+
+	public boolean function deleteObjectMetaData(objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			DELETE FROM value
+			WHERE meta_id IN (
+				SELECT id
+				FROM meta
+				WHERE object_id = ( :id )
+			)
+		");
+		local.queryService.execute();
+		return true;
+	}
+
+	public boolean function deleteObjectJoinMetaFields(child, parent) {
+		local.objectJoin = getObjectJoin(arguments.child, arguments.parent);
+		deleteObjectJoinMetaData(arguments.child, arguments.parent);
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = local.objectJoin.id, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			DELETE FROM join_meta
+			WHERE object_join_id = ( :id )
+		");
+		local.queryService.execute();
+		return true;
+	}
+
+	public boolean function deleteObjectJoinMetaData(objectId, parent) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'parent', value = arguments.parent, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			DELETE FROM join_value
+			WHERE join_meta_id IN (
+				SELECT jm.id
+				FROM join_meta jm
+				INNER JOIN object_join oj ON oj.id = jm.object_join_id
+				WHERE oj.child_id = ( :id )
+					AND oj.parent_id = ( :parent )
+			)
+		");
+		local.queryService.execute();
+		return true;
+	}
+
 	public query function getTypes() {
 		local.queryService = new Query();
 		local.queryService.setSQL("
@@ -17,6 +75,64 @@ component output='false' {
 			SELECT id, name
 			FROM join_type
 			ORDER BY name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getMetaForObjectType(objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT DISTINCT m.name, m.display_name, m.multiple, m.sequence, m.type_id
+			FROM object o
+			INNER JOIN type t ON t.id = o.type_id
+			INNER JOIN meta m ON m.type_id = t.id
+			WHERE o.id = ( :id )
+			ORDER BY sequence ASC, name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getMetaForObject(objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'id', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT m.id, m.name, m.display_name, m.multiple, m.sequence, m.type_id
+			FROM object o
+			INNER JOIN meta m ON m.object_id = o.id
+			WHERE o.id = ( :id )
+			ORDER BY sequence ASC, name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getJoinMetaForObjectJoinType(objectId, parentId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT DISTINCT jm.name, jm.display_name, jm.multiple, jm.sequence, jm.join_type_id, jm.direction
+			FROM object_join oj
+			INNER JOIN join_type jt ON jt.id = oj.join_type_id
+			INNER JOIN join_meta jm ON jm.join_type_id = jt.id
+			WHERE oj.parent_id = ( :parentId )
+				AND oj.child_id = ( :objectId )
+			ORDER BY sequence ASC, name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getJoinMetaForObjectJoin(objectId, parentId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT jm.id, jm.name, jm.display_name, jm.multiple, jm.sequence, jm.direction, jm.join_type_id
+			FROM object_join oj
+			INNER JOIN join_meta jm ON jm.object_join_id = oj.id
+			WHERE oj.parent_id = ( :parentId )
+				AND oj.child_id = ( :objectId )
+			ORDER BY sequence ASC, name ASC
 		");
 		return local.queryService.execute().getResult();
 	}
@@ -57,24 +173,35 @@ component output='false' {
 			WHERE parent_id = ( :id )
 		");
 		local.children = local.queryService.execute().getResult();
-		
-		if(local.children.count > 0) {
-			return false;
-		} else {
-			local.queryService.setSQL("
-				DELETE FROM object_join
-				WHERE parent_id = ( :parent )
-					AND child_id = ( :id )
-			");
-			local.queryService.execute().getResult();
-	
-			local.queryService.setSQL("
-				DELETE FROM object
-				WHERE id = ( :id )
-			");
-			local.queryService.execute().getResult();
+
+		transaction {        
+    	try {
+				if(local.children.count > 0) {
+					return false;
+				} else {
+					deleteObjectMetaFields(arguments.id);
+					deleteObjectJoinMetaFields(arguments.id, arguments.parent);
+
+					local.queryService.setSQL("
+						DELETE FROM object_join
+						WHERE parent_id = ( :parent )
+							AND child_id = ( :id )
+					");
+					local.queryService.execute().getResult();
 			
-			return true;
+					local.queryService.setSQL("
+						DELETE FROM object
+						WHERE id = ( :id )
+					");
+					local.queryService.execute().getResult();
+				}
+	   		transactionCommit();
+				return true;
+	   	} catch(any e) {
+	   		transactionRollback();
+	   		writeDump(e);abort;
+				return false;
+	   	}
 		}
 	}
 
@@ -82,9 +209,22 @@ component output='false' {
 		local.queryService = new Query();
 		local.queryService.addParam(name = 'id', value = arguments.id, cfsqltype = 'cf_sql_integer');
 		local.queryService.setSQL("
-			SELECT o.id, o.name
+			SELECT o.id, o.name, o.type_id
 			FROM object o
 			WHERE o.id = ( :id )
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getObjectJoin(required numeric childId, required numeric parentId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'childId', value = arguments.childId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT oj.id, oj.join_type_id
+			FROM object_join oj
+			WHERE oj.child_id = ( :childId )
+				AND oj.parent_id = ( :parentId )
 		");
 		return local.queryService.execute().getResult();
 	}
@@ -93,7 +233,7 @@ component output='false' {
 		local.queryService = new Query();
 		local.queryService.addParam(name = 'id', value = arguments.id, cfsqltype = 'cf_sql_integer');
 		local.queryService.setSQL("
-			SELECT o.id, o.name, m.display_name AS [key], v.value
+			SELECT o.id, o.name, m.display_name AS [key], v.value, m.multiple
 			FROM object o
 			LEFT JOIN meta m ON m.object_id = o.id
 			LEFT JOIN value v ON v.meta_id = m.id
@@ -107,7 +247,7 @@ component output='false' {
 		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
 		local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
 		local.queryService.setSQL("
-			SELECT oj.id, m.display_name AS [key], v.value
+			SELECT oj.id, m.display_name AS [key], v.value, m.multiple
 			FROM object_join oj
 			LEFT JOIN join_meta m ON m.object_join_id = oj.id
 			LEFT JOIN join_value v ON v.join_meta_id = m.id
@@ -202,7 +342,160 @@ component output='false' {
 						( :joinType )
 					)
 				");
-				local.queryService.execute().getResult();
+				local.queryService.execute();
+    		transactionCommit();
+				return true;
+    	} catch(any e) {
+    		transactionRollback();
+				return false;
+    	}
+    }
+	}
+	
+	public boolean function setObjectMetaFields(required numeric objectId) {
+		local.existingObjectMeta = getMetaForObject(arguments.objectId);
+		local.meta = getMetaForObjectType(arguments.objectId);
+		for(local.m in local.meta) {
+			local.addMeta = true;
+			for(local.eom in local.existingObjectMeta) {
+				if(local.eom.name == local.m.name) local.addMeta = false;
+			}
+			if(local.addMeta) {
+				local.queryService = new Query();
+				local.queryService.addParam(name = 'name', value = local.m.name, cfsqltype = 'cf_sql_varchar');
+				local.queryService.addParam(name = 'displayName', value = local.m.display_name, cfsqltype = 'cf_sql_varchar');
+				local.queryService.addParam(name = 'typeId', value = local.m.type_id, cfsqltype = 'cf_sql_integer');
+				local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+				local.queryService.addParam(name = 'sequence', value = local.m.sequence, cfsqltype = 'cf_sql_integer');
+				local.queryService.addParam(name = 'multiple', value = local.m.multiple, cfsqltype = 'cf_sql_bit');
+				local.queryService.setSQL("
+					INSERT INTO meta (name, display_name, type_id, object_id, sequence, multiple)
+					VALUES ( ( :name), ( :displayName), ( :typeId), ( :objectId), ( :sequence), ( :multiple ) )
+				");
+				local.queryService.execute();
+			}
+		}
+		return true;
+	}
+	
+	public boolean function setObjectJoinMetaFields(required numeric id, required numeric parent) {
+		local.objectJoin = getObjectJoin(arguments.id, arguments.parent);
+		if(local.objectJoin.recordCount) {
+			local.existingObjectJoinMeta = getJoinMetaForObjectJoin(arguments.id, arguments.parent);
+			local.joinMeta = getJoinMetaForObjectJoinType(arguments.id, arguments.parent);
+			for(local.m in local.joinMeta) {
+				local.addMeta = true;
+				for(local.eom in local.existingObjectJoinMeta) {
+					if(local.eom.name == local.m.name) local.addMeta = false;
+				}
+				if(local.addMeta) {
+					local.queryService = new Query();
+					local.queryService.addParam(name = 'name', value = local.m.name, cfsqltype = 'cf_sql_varchar');
+					local.queryService.addParam(name = 'displayName', value = local.m.display_name, cfsqltype = 'cf_sql_varchar');
+					local.queryService.addParam(name = 'joinTypeId', value = local.m.join_type_id, cfsqltype = 'cf_sql_integer');
+					local.queryService.addParam(name = 'objectJoinId', value = local.objectJoin.id, cfsqltype = 'cf_sql_integer');
+					local.queryService.addParam(name = 'sequence', value = local.m.sequence, cfsqltype = 'cf_sql_integer');
+					local.queryService.addParam(name = 'multiple', value = local.m.multiple, cfsqltype = 'cf_sql_bit');
+					local.queryService.addParam(name = 'direction', value = local.m.direction, cfsqltype = 'cf_sql_varchar', null=!len(local.m.direction));
+					local.queryService.setSQL("
+						INSERT INTO join_meta (name, display_name, join_type_id, object_join_id, sequence, multiple, direction)
+						VALUES ( ( :name), ( :displayName), ( :joinTypeId), ( :objectJoinId), ( :sequence), ( :multiple ), ( :direction ) )
+					");
+					local.queryService.execute();
+				}
+			}
+		}
+		return true;
+	}
+
+	public boolean function setMetaValue(required numeric metaId, required string value, required numeric contentId, required numeric sequence) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'metaId', value = arguments.metaId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'value', value = trim(arguments.value), cfsqltype = 'cf_sql_varchar');
+		local.queryService.addParam(name = 'contentId', value = arguments.contentId, cfsqltype = 'cf_sql_integer', null = arguments.contentId == 0 ? true : false);
+		local.queryService.addParam(name = 'sequence', value = arguments.sequence, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			INSERT INTO value (meta_id, value, content_id, sequence)
+			VALUES ( ( :metaId), ( :value), ( :contentId), ( :sequence) )
+		");
+		local.queryService.execute();
+		return true;
+	}
+
+	public boolean function setJoinMetaValue(required numeric joinMetaId, required string value, required numeric contentId, required numeric sequence) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'joinMetaId', value = arguments.joinMetaId, cfsqltype = 'cf_sql_integer');
+		local.queryService.addParam(name = 'value', value = trim(arguments.value), cfsqltype = 'cf_sql_varchar');
+		local.queryService.addParam(name = 'contentId', value = arguments.contentId, cfsqltype = 'cf_sql_integer', null = arguments.contentId == 0 ? true : false);
+		local.queryService.addParam(name = 'sequence', value = arguments.sequence, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			INSERT INTO join_value (join_meta_id, value, content_id, sequence)
+			VALUES ( ( :joinMetaId), ( :value), ( :contentId), ( :sequence) )
+		");
+		local.queryService.execute();
+		return true;
+	}
+	
+	public boolean function editObject(required numeric id, required string name, required numeric parent) {
+		transaction {        
+    	try {        
+				local.queryService = new Query();
+				local.queryService.addParam(name = 'id', value = arguments.id, cfsqltype = 'cf_sql_integer');
+				local.queryService.addParam(name = 'name', value = trim(arguments.name), cfsqltype = 'cf_sql_varchar');
+				local.queryService.addParam(name = 'parent', value = arguments.parent, cfsqltype = 'cf_sql_integer');
+				local.queryService.setSQL("
+					UPDATE object
+					SET name = ( :name )
+					WHERE id = ( :id )
+				");
+				local.queryService.execute();
+
+				//Update meta data
+				deleteObjectMetaData(arguments.id);
+				setObjectMetaFields(arguments.id);
+				local.objectMeta = getMetaForObject(arguments.id);
+				local.sObjectMeta = {};
+				for(local.meta in local.objectMeta) {
+					local.sObjectMeta[local.meta.name] = local.meta.id;
+				}
+				local.fields = getMetaForObjectType(arguments.id);
+				for(local.field in local.fields) {
+					if(local.field.multiple) {
+						local.i = 1;
+						while(structKeyExists(arguments, "#local.field.name#_#local.i#")) {
+							if(trim(arguments["#local.field.name#_#local.i#"]) != "")
+								setMetaValue(local.sObjectMeta[local.field.name], arguments["#local.field.name#_#local.i#"], 0, local.i);
+							local.i++;
+						}
+					} else {
+						if(trim(arguments[local.field.name]) != "")
+							setMetaValue(local.sObjectMeta[local.field.name], arguments[local.field.name], 0, 0);
+					}
+				}
+
+				//Update join_meta data
+				deleteObjectJoinMetaData(arguments.id, arguments.parent);
+				setObjectJoinMetaFields(arguments.id, arguments.parent);
+				local.objectJoinMeta = getJoinMetaForObjectJoin(arguments.id, arguments.parent);
+				local.sObjectJoinMeta = {};
+				for(local.joinMeta in local.objectJoinMeta) {
+					local.sObjectJoinMeta[local.joinMeta.name] = local.joinMeta.id;
+				}
+				local.fields = getJoinMetaForObjectJoinType(arguments.id, arguments.parent);
+				for(local.field in local.fields) {
+					if(local.field.multiple) {
+						local.i = 1;
+						while(structKeyExists(arguments, "#local.field.name#_#local.i#")) {
+							if(trim(arguments["#local.field.name#_#local.i#"]) != "")
+								setJoinMetaValue(local.sObjectJoinMeta[local.field.name], arguments["#local.field.name#_#local.i#"], 0, local.i);
+							local.i++;
+						}
+					} else {
+						if(trim(arguments[local.field.name]) != "")
+							setJoinMetaValue(local.sObjectJoinMeta[local.field.name], arguments[local.field.name], 0, 0);
+					}
+				}
+
     		transactionCommit();
 				return true;
     	} catch(any e) {
@@ -220,8 +513,8 @@ component output='false' {
 			if(isDefined("arguments.q.name")) structInsert(local.s, 'name', arguments.q.name);
 			structInsert(local.s, 'metadata', {});
 			for(local.item in arguments.q) {
-				if(structKeyExists(local.s.metadata, local.item.key)) {
-					local.existingValue = local.s.metadata[local.item.key];
+				if(val(local.item.multiple)) {
+					local.existingValue = structKeyExists(local.s.metadata, local.item.key) ? local.s.metadata[local.item.key] : [];
 					if(isArray(local.existingValue)) arrayAppend(local.existingValue, local.item.value);
 					else local.existingValue = [local.s.metadata[local.item.key], local.item.value];
 					local.s.metadata[local.item.key] = local.existingValue;

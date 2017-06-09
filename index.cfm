@@ -28,11 +28,19 @@
 	<cfset url.path = listAppend(url.path, url.p) />
 </cfif>
 
-<!--- Add an object --->
+<!--- Submit add an object --->
 <cfif isDefined("form.newObject")>
 	<cfif NOT application.s.main.setObject(argumentCollection=form)>
 		<cfoutput><span style="color: red">New object creation failed!</span><br /><br /></cfoutput>
 	</cfif>
+</cfif>
+
+<!--- Submit edit an object --->
+<cfif isDefined("form.updateObject")>
+	<cfif NOT application.s.main.editObject(argumentCollection=form)>
+		<cfoutput><span style="color: red">Object update failed!</span><br /><br /></cfoutput>
+	</cfif>
+	<cflocation url="?#currentQueryString#&view=#url.edit#" addToken="false" />
 </cfif>
 
 <!--- View object --->
@@ -45,6 +53,8 @@
 <cfif isDefined("url.edit") AND isNumeric(url.edit)>
 	<cfset editObjectData = application.s.main.getObjectMetaData(url.edit)>
 	<cfset editRelationshipData = application.s.main.getObjectJoinMetaData(url.edit, url.p)>
+	<cfset metaFields = application.s.main.getMetaForObjectType(url.edit) />
+	<cfset joinMetaFields = application.s.main.getJoinMetaForObjectJoinType(url.edit, url.p) />
 </cfif>
 
 <!--- Delete an object --->
@@ -90,7 +100,6 @@
 
 <!--- Get path objects --->
 <cfset aPathObjects = application.s.main.getPathObjects(url.path) />
-
 
 
 <!--- ********VIEWS********* --->
@@ -176,9 +185,7 @@
 					<td width="20">
 					</td>
 					<td valign="top">
-						<b>Object Data:</b><br />
-						ID: #objectData.id#<br />
-						Name: #objectData.name#<br />
+						<b>Object '#objectData.name#' Data (ID: #objectData.id#):</b><br />
 						<cfloop collection="#objectData.metadata#" item="key">
 							<cfif len(key)>
 								#key#:
@@ -218,9 +225,44 @@
 					<td width="20">
 					</td>
 					<td valign="top">
-						<b>Edit Object:</b><br />
-						ID: #editObjectData.id#<br />
-						Name: #editObjectData.name#<br />
+						<h4>Edit Object (ID: #editObjectData.id#):</h4>
+						<form action="" method="post">
+							<!--- object fields --->
+							Name: <input type="text" name="name" value="#editObjectData.name#"><br />
+							<!--- meta fields --->
+							<h4>Object Data</h4>
+							<cfloop query="metaFields">
+								#metaFields.display_name#: 
+								<cfif metaFields.multiple>
+									<cfset value = structKeyExists(editObjectData.metadata, metaFields.name) ? editObjectData.metadata[metaFields.name] : [] />
+									<cfloop from="1" to="#arrayLen(value)#" index="i">
+										<input type="text" name="#metaFields.name#_#i#" value="#value[i]#" size="120"><br />
+									</cfloop>
+									<input type="text" name="#metaFields.name#_#i#" value="" size="120"><br />
+								<cfelse>
+									<cfset value = structKeyExists(editObjectData.metadata, metaFields.name) ? editObjectData.metadata[metaFields.name] : "" />
+									<input type="text" name="#metaFields.name#" value="#value#" size="120"><br />
+								</cfif>
+							</cfloop>
+							<!--- join_meta fields --->
+							<h4>Relationship Data</h4>
+							<cfloop query="joinMetaFields">
+								#joinMetaFields.display_name#:
+								<cfif joinMetaFields.multiple>
+									<cfset value = structKeyExists(editRelationshipData.metadata, joinMetaFields.name) ? editRelationshipData.metadata[joinMetaFields.name] : [] />
+									<cfloop from="1" to="#arrayLen(value)#" index="i">
+										<input type="text" name="#joinMetaFields.name#_#i#" value="#value[i]#" size="120"><br />
+									</cfloop>
+									<input type="text" name="#joinMetaFields.name#_#i#" value="" size="120"><br />
+								<cfelse>
+									<cfset value = structKeyExists(editRelationshipData.metadata, joinMetaFields.name) ? editRelationshipData.metadata[joinMetaFields.name] : "" />
+									<input type="text" name="#joinMetaFields.name#" value="#value#" size="120"><br />
+								</cfif>
+							</cfloop><br />
+							<input type="hidden" name="parent" value="#url.p#">
+							<input type="hidden" name="id" value="#editObjectData.id#">
+							<input type="submit" name="updateObject" value="Edit">
+						</form>
 					</td>
 				</cfif>
 				<!--- Delete Object --->

@@ -1,29 +1,28 @@
 <cfset crlf = chr(13) & chr(10) />
 
-<cfset output = "--Empty all tables
-DELETE FROM value
-DELETE FROM join_value
-DELETE FROM meta
-DELETE FROM join_meta
-DELETE FROM object_join
-DELETE FROM join_type
-DELETE FROM object
-DELETE FROM type
-DELETE FROM content
+<cfset output = "--Empty all tables" & crlf />
+<cfset output &= "DELETE FROM value" & crlf />
+<cfset output &= "DELETE FROM join_value" & crlf />
+<cfset output &= "DELETE FROM meta" & crlf />
+<cfset output &= "DELETE FROM join_meta" & crlf />
+<cfset output &= "DELETE FROM object_join" & crlf />
+<cfset output &= "DELETE FROM join_type" & crlf />
+<cfset output &= "DELETE FROM object" & crlf />
+<cfset output &= "DELETE FROM type" & crlf />
+<cfset output &= "DELETE FROM content" & crlf & crlf & crlf />
 
+<cfset output &= "/* Select statements for checking data after import:" & crlf />
+<cfset output &= "SELECT * FROM type" & crlf />
+<cfset output &= "SELECT * FROM object" & crlf />
+<cfset output &= "SELECT * FROM join_type" & crlf />
+<cfset output &= "SELECT * FROM object_join" & crlf />
+<cfset output &= "SELECT * FROM join_meta" & crlf />
+<cfset output &= "SELECT * FROM meta" & crlf />
+<cfset output &= "SELECT * FROM join_value" & crlf />
+<cfset output &= "SELECT * FROM value" & crlf />
+<cfset output &= "SELECT * FROM content" & crlf />
+<cfset output &= "*/" & crlf & crlf />
 
-/* Select statements for checking data after import:
-SELECT * FROM type
-SELECT * FROM object
-SELECT * FROM join_type
-SELECT * FROM object_join
-SELECT * FROM join_meta
-SELECT * FROM meta
-SELECT * FROM join_value
-SELECT * FROM value
-SELECT * FROM content
-*/
-" />
 
 <!--- Tables --->
 <cfset qContent = application.s.data.getAllContent() />
@@ -97,5 +96,5 @@ SELECT * FROM content
 
 <!--- Download SQL File --->
 <cfheader name="Content-Disposition" value="attachment; filename=export.sql" />
-<cfcontent variable="#toBinary(toBase64(output))#"  type="application/octet-stream">
+<cfcontent variable="#toBinary(toBase64(output))#"  type="application/octet-stream" reset="true"><cfabort>
 <!---<cfcontent reset="true"><cfoutput><pre>#output#</pre></cfoutput><cfabort>--->
