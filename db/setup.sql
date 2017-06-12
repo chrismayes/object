@@ -55,12 +55,16 @@ CREATE TABLE [dbo].[meta](
 	[display_name] [nvarchar](max) NOT NULL,
 	[type_id] [int] NOT NULL,
 	[object_id] [int] NOT NULL,
+	[sequence] [int] NOT NULL,
+	[multiple] [bit] NOT NULL,
  CONSTRAINT [PK_meta] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
+ALTER TABLE [dbo].[meta] ADD  CONSTRAINT [DF_meta_sequence]  DEFAULT ((0)) FOR [sequence]
+ALTER TABLE [dbo].[meta] ADD  CONSTRAINT [DF_meta_multiple]  DEFAULT ((0)) FOR [multiple]
 ALTER TABLE [dbo].[meta]  WITH CHECK ADD  CONSTRAINT [FK_meta_object] FOREIGN KEY([object_id])
 REFERENCES [dbo].[object] ([id])
 ALTER TABLE [dbo].[meta] CHECK CONSTRAINT [FK_meta_object]
@@ -76,12 +80,14 @@ CREATE TABLE [dbo].[value](
 	[meta_id] [int] NOT NULL,
 	[value] [nvarchar](max) NULL,
 	[content_id] [int] NULL,
+	[sequence] [int] NOT NULL,
  CONSTRAINT [PK_value] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
+ALTER TABLE [dbo].[value] ADD  CONSTRAINT [DF_value_sequence]  DEFAULT ((0)) FOR [sequence]
 ALTER TABLE [dbo].[value]  WITH CHECK ADD  CONSTRAINT [FK_value_content] FOREIGN KEY([content_id])
 REFERENCES [dbo].[content] ([id])
 ALTER TABLE [dbo].[value] CHECK CONSTRAINT [FK_value_content]
@@ -134,11 +140,17 @@ CREATE TABLE [dbo].[join_meta](
 	[display_name] [nvarchar](max) NOT NULL,
 	[join_type_id] [int] NOT NULL,
 	[object_join_id] [int] NOT NULL,
+	[sequence] [int] NOT NULL,
+	[multiple] [bit] NOT NULL,
+	[direction] [nvarchar](10) NULL,
  CONSTRAINT [PK_join_meta] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+ALTER TABLE [dbo].[join_meta] ADD  CONSTRAINT [DF_join_meta_sequence]  DEFAULT ((0)) FOR [sequence]
+ALTER TABLE [dbo].[join_meta] ADD  CONSTRAINT [DF_join_meta_multiple]  DEFAULT ((0)) FOR [multiple]
 ALTER TABLE [dbo].[join_meta]  WITH CHECK ADD  CONSTRAINT [FK_join_meta_join_type] FOREIGN KEY([join_type_id])
 REFERENCES [dbo].[join_type] ([id])
 ALTER TABLE [dbo].[join_meta] CHECK CONSTRAINT [FK_join_meta_join_type]
@@ -154,11 +166,14 @@ CREATE TABLE [dbo].[join_value](
 	[join_meta_id] [int] NOT NULL,
 	[value] [nvarchar](max) NULL,
 	[content_id] [int] NULL,
+	[sequence] [int] NOT NULL,
  CONSTRAINT [PK_join_value] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+ALTER TABLE [dbo].[join_value] ADD  CONSTRAINT [DF_join_value_sequence]  DEFAULT ((0)) FOR [sequence]
 ALTER TABLE [dbo].[join_value]  WITH CHECK ADD  CONSTRAINT [FK_join_value_content] FOREIGN KEY([content_id])
 REFERENCES [dbo].[content] ([id])
 ALTER TABLE [dbo].[join_value] CHECK CONSTRAINT [FK_join_value_content]
@@ -179,14 +194,14 @@ INSERT INTO object(name, type_id) VALUES('example', 10)
 
 INSERT INTO object_join(parent_id, child_id, join_type_id) VALUES(1, 2, 1)
 
-INSERT INTO join_meta(name, display_name, join_type_id, object_join_id) VALUES('relationship', 'Relationship', 1, 1)
-INSERT INTO join_meta(name, display_name, join_type_id, object_join_id) VALUES('origin', 'Origin', 1, 1)
-INSERT INTO join_value(join_meta_id, value) VALUES(1, 'The example object is connected to the root object.')
-INSERT INTO join_value(join_meta_id, value) VALUES(2, 'Created by the developer.')
-INSERT INTO join_value(join_meta_id, value) VALUES(2, 'Autocreated by setup script.')
+INSERT INTO join_meta(name, display_name, join_type_id, object_join_id, sequence, multiple, direction) VALUES('relationship', 'Relationship', 1, 1, 1, 0, NULL)
+INSERT INTO join_meta(name, display_name, join_type_id, object_join_id, sequence, multiple, direction) VALUES('origin', 'Origin', 1, 1, 2, 1, NULL)
+INSERT INTO join_value(join_meta_id, value, content_id, sequence) VALUES(1, 'The example object is connected to the root object.', NULL, 1)
+INSERT INTO join_value(join_meta_id, value, content_id, sequence) VALUES(2, 'Created by the developer.', NULL, 1)
+INSERT INTO join_value(join_meta_id, value, content_id, sequence) VALUES(2, 'Autocreated by setup script.', NULL, 2)
 
-INSERT INTO meta(name, display_name, type_id, object_id) VALUES('description', 'Description', 10, 2)
-INSERT INTO value(meta_id, value) VALUES(1, 'This is the first object created in the database as an example. Feel free to delete it.')
+INSERT INTO meta(name, display_name, type_id, object_id, sequence, multiple) VALUES('description', 'Description', 10, 2, 1, 1)
+INSERT INTO value(meta_id, value, content_id, sequence) VALUES(1, 'This is the first object created in the database as an example. Feel free to delete it.', NULL, 1)
 
 
 

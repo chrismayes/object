@@ -1,7 +1,5 @@
 <!---
 	ToDo:
-		edit object
-		edit releationship
 		search before create - use existing obj as child
 		link obj to additional parent
 		option to have alternative names for same object

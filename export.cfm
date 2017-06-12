@@ -58,7 +58,7 @@
 <cfset output &= crlf & "--Table: meta" & crlf />
 <cfset output &= "SET IDENTITY_INSERT meta ON" & crlf />
 <cfloop query="qMetas">
-	<cfset output &= "INSERT INTO meta (id, name, display_name, type_id, object_id)	VALUES (#qMetas.id#, '#application.escapeSQL(qMetas.name)#', '#application.escapeSQL(qMetas.display_name)#', #qMetas.type_id#, #qMetas.object_id#)" & crlf />
+	<cfset output &= "INSERT INTO meta (id, name, display_name, type_id, object_id, sequence, multiple)	VALUES (#qMetas.id#, '#application.escapeSQL(qMetas.name)#', '#application.escapeSQL(qMetas.display_name)#', #qMetas.type_id#, #qMetas.object_id#, #qMetas.sequence#, #qMetas.multiple#)" & crlf />
 </cfloop>
 <cfset output &= "SET IDENTITY_INSERT meta OFF" & crlf />
 
@@ -66,7 +66,7 @@
 <cfset output &= crlf & "--Table: value" & crlf />
 <cfset output &= "SET IDENTITY_INSERT value ON" & crlf />
 <cfloop query="qValues">
-	<cfset output &= "INSERT INTO value (id, meta_id, value) VALUES (#qValues.id#, #qValues.meta_id#, '#application.escapeSQL(qValues.value)#')" & crlf />
+	<cfset output &= "INSERT INTO value (id, meta_id, value, content_id, sequence) VALUES (#qValues.id#, #qValues.meta_id#, '#application.escapeSQL(qValues.value)#', #len(qValues.content_id) ? qValues.content_id : 'NULL'#, #qValues.sequence#)" & crlf />
 </cfloop>
 <cfset output &= "SET IDENTITY_INSERT value OFF" & crlf />
 
@@ -82,7 +82,7 @@
 <cfset output &= crlf & "--Table: join_meta" & crlf />
 <cfset output &= "SET IDENTITY_INSERT join_meta ON" & crlf />
 <cfloop query="qJoinMetas">
-	<cfset output &= "INSERT INTO join_meta (id, name, display_name, join_type_id, object_join_id) VALUES (#qJoinMetas.id#, '#application.escapeSQL(qJoinMetas.name)#', '#application.escapeSQL(qJoinMetas.display_name)#', #qJoinMetas.join_type_id#, #qJoinMetas.object_join_id#)" & crlf />
+	<cfset output &= "INSERT INTO join_meta (id, name, display_name, join_type_id, object_join_id, sequence, multiple, direction) VALUES (#qJoinMetas.id#, '#application.escapeSQL(qJoinMetas.name)#', '#application.escapeSQL(qJoinMetas.display_name)#', #qJoinMetas.join_type_id#, #qJoinMetas.object_join_id#, #qJoinMetas.sequence#, #qJoinMetas.multiple#, #len(qJoinMetas.direction) ? qJoinMetas.direction : 'NULL'#)" & crlf />
 </cfloop>
 <cfset output &= "SET IDENTITY_INSERT join_meta OFF" & crlf />
 
@@ -90,7 +90,7 @@
 <cfset output &= crlf & "--Table: join_value" & crlf />
 <cfset output &= "SET IDENTITY_INSERT join_value ON" & crlf />
 <cfloop query="qJoinValues">
-	<cfset output &= "INSERT INTO join_value (id, join_meta_id, value) VALUES (#qJoinValues.id#, #qJoinValues.join_meta_id#, '#application.escapeSQL(qJoinValues.value)#')" & crlf />
+	<cfset output &= "INSERT INTO join_value (id, join_meta_id, value, content_id, sequence) VALUES (#qJoinValues.id#, #qJoinValues.join_meta_id#, '#application.escapeSQL(qJoinValues.value)#', #len(qJoinValues.content_id) ? qJoinValues.content_id : 'NULL'#, #qJoinValues.sequence#)" & crlf />
 </cfloop>
 <cfset output &= "SET IDENTITY_INSERT join_value OFF" & crlf />
 
