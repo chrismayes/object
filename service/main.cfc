@@ -316,6 +316,115 @@ component output='false' {
 		return local.queryService.execute().getResult();
 	}
 
+	public query function getParents(required numeric objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT p.id, p.name, p.type_id, count(ch.id) AS children
+			FROM object_join oj
+			INNER JOIN object p ON p.id = oj.parent_id
+			LEFT JOIN object_join ch ON ch.parent_id = oj.parent_id
+			WHERE oj.child_id = ( :objectId )
+				AND oj.parent_id != 1
+			GROUP BY p.id, p.name, p.type_id
+			ORDER BY p.name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getAllTreePathsFromRoot() {
+		local.queryService = new Query();
+		local.queryService.setSQL("
+			;WITH graph
+				AS (SELECT id, parent_id, child_id, 1 as 'level', CONCAT(CAST(parent_id as nvarchar(max)), ',', CAST(child_id as nvarchar(max))) as path
+					FROM object_join
+					WHERE parent_id = 1
+					UNION ALL
+					SELECT oj.id, oj.parent_id, oj.child_id, level + 1 as 'level', CONCAT ( path, ',', CAST(oj.child_id as nvarchar(max))) as 'path'
+					FROM object_join oj WITH (NOLOCK)
+					INNER JOIN graph ON oj.parent_id = graph.child_id
+					WHERE oj.child_id NOT IN (SELECT tmp.id FROM CSVToTable(graph.path) tmp )
+				)
+			SELECT g.path
+			FROM graph g
+			WHERE EXISTS (
+				SELECT 1
+				FROM graph g2
+				WHERE g2.child_id = g.parent_id
+				AND g2.Level < g.level
+			)
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getAllPathsFromObjectToRoot(required numeric objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			;WITH graph
+				AS (SELECT id, parent_id, child_id, ( :objectId ) as 'level', CONCAT(CAST(child_id as nvarchar(max)), ',', CAST(parent_id as nvarchar(max))) as path
+					FROM object_join
+					WHERE child_id = ( :objectId )
+					UNION ALL
+					SELECT oj.id, oj.parent_id, oj.child_id, level + ( :objectId ) as 'level', CONCAT ( path, ',', CAST(oj.parent_id as nvarchar(max))) as 'path'
+					FROM object_join oj WITH (NOLOCK)
+					INNER JOIN graph ON oj.child_id = graph.parent_id
+					WHERE oj.parent_id NOT IN (SELECT tmp.id FROM CSVToTable(graph.path) tmp )
+				)
+			SELECT g.path
+			FROM graph g
+			WHERE EXISTS (
+				SELECT 1
+				FROM graph g2
+				WHERE g2.parent_id = g.child_id
+				AND g2.Level < g.level
+			)
+			AND parent_id = 1
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getFirstPathFromObjectToRoot(required numeric objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			;WITH graph
+				AS (SELECT id, parent_id, child_id, ( :objectId ) as 'level', CONCAT(CAST(child_id as nvarchar(max)), ',', CAST(parent_id as nvarchar(max))) as path
+					FROM object_join
+					WHERE child_id = ( :objectId )
+					UNION ALL
+					SELECT oj.id, oj.parent_id, oj.child_id, level + ( :objectId ) as 'level', CONCAT ( path, ',', CAST(oj.parent_id as nvarchar(max))) as 'path'
+					FROM object_join oj WITH (NOLOCK)
+					INNER JOIN graph ON oj.child_id = graph.parent_id
+					WHERE oj.parent_id NOT IN (SELECT tmp.id FROM CSVToTable(graph.path) tmp )
+				)
+			SELECT top 1 g.path
+			FROM graph g
+			WHERE EXISTS (
+				SELECT 1
+				FROM graph g2
+				WHERE g2.parent_id = g.child_id
+				AND g2.Level < g.level
+			)
+			AND parent_id = 1
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function searchParents(required string search, required string type) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'search', value = '%#arguments.search#%', cfsqltype = 'cf_sql_varchar', null = len(arguments.search) < 2);
+		local.queryService.addParam(name = 'type', value = val(arguments.type), cfsqltype = 'cf_sql_integer', null = val(arguments.type) == 0);
+		local.queryService.setSQL("
+			SELECT id, name, type_id
+			FROM object
+			WHERE name like ( :search )
+				AND (( :type ) IS NULL OR type_id = ( :type ))
+			ORDER BY name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
 	public boolean function setObject(required string name, required numeric type, required numeric parent, numeric joinType = 1) {
 		transaction {        
     	try {        
@@ -434,6 +543,24 @@ component output='false' {
 		");
 		local.queryService.execute();
 		return true;
+	}
+	
+	public boolean function setNewParent(required numeric objectId, required numeric parentId, numeric joinType = 1) {
+		local.exists = getObjectJoin(arguments.objectId, arguments.parentId);
+		if(!local.exists.recordCount) {
+			local.queryService = new Query();
+			local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+			local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+			local.queryService.addParam(name = 'joinType', value = arguments.joinType, cfsqltype = 'cf_sql_integer');
+			local.queryService.setSQL("
+				INSERT INTO object_join (parent_id, child_id, join_type_id)
+				VALUES ( ( :parentId), ( :objectId), ( :joinType) )
+			");
+			local.queryService.execute();
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	public boolean function editObject(required numeric id, required string name, required numeric parent) {

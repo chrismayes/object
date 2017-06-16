@@ -1,8 +1,9 @@
 <!---
 	ToDo:
-		search before create - use existing obj as child
-		link obj to additional parent
-		option to have alternative names for same object
+		disable link if its already a link
+		When creating a new object have an intermediate page with search results showing possible existing parents (option to select one instead of the one entered in the form)
+		Alternative names for same object
+		File upload for content / view content
 --->
 
 <!--- Setup --->
@@ -18,7 +19,7 @@
 </cfif>
 <cfset currentQueryString = "" />
 <cfloop collection="#url#" item="key">
-	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete", key)>
+	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete,link", key)>
 		<cfset currentQueryString = listAppend(currentQueryString, "#lcase(key)#=#urlEncodedFormat(url[key])#", "&") />
 	</cfif>
 </cfloop>
@@ -38,7 +39,36 @@
 	<cfif NOT application.s.main.editObject(argumentCollection=form)>
 		<cfoutput><span style="color: red">Object update failed!</span><br /><br /></cfoutput>
 	</cfif>
-	<cflocation url="?#currentQueryString#&view=#url.edit#" addToken="false" />
+	<cfdump var="#url#">
+	<cfdump var="#form#">
+	<cflocation url="?#currentQueryString#&view=#form.id#" addToken="false" />
+</cfif>
+
+<!--- Search for parents --->
+<cfif isDefined("form.searchParents")>
+	<cfset searchParentsResults = application.s.main.searchParents(argumentCollection=form) />
+	<cfset qParentsSearchResultsWithLinks = searchParentsResults />
+	<cfset queryAddColumn(qParentsSearchResultsWithLinks, "link", "varchar", []) />
+	<cfloop query="qParentsSearchResultsWithLinks">
+		<cfset qPathsToRoot = application.s.main.getFirstPathFromObjectToRoot(qParentsSearchResultsWithLinks.id) />
+		<cfset reversedPath = listRest(qPathsToRoot.path) />
+		<cfset pathToRoot = "" />
+		<cfloop from="#listLen(reversedPath)#" to="1" index="i" step="-1">
+			<cfset pathToRoot = listAppend(pathToRoot, listGetAt(reversedPath, i)) />
+		</cfloop>
+		<cfset theLink = "<a href=""?p=#qParentsSearchResultsWithLinks.id#&parentName=#urlEncodedFormat(qParentsSearchResultsWithLinks.name)#&path=#pathToRoot#"">#name#</a>" />
+		<cfset querySetCell(qParentsSearchResultsWithLinks, "name", theLink, qParentsSearchResultsWithLinks.currentRow) /> 
+		<cfset linkLink = "<a href=""?#currentQueryString#&link=#qParentsSearchResultsWithLinks.id#"">Link</a>" />
+		<cfset querySetCell(qParentsSearchResultsWithLinks, "link", linkLink, qParentsSearchResultsWithLinks.currentRow) /> 
+	</cfloop>
+	<cfset parentsSearchResults = application.queryToTable(searchParentsResults,	[
+		{id: "ID"}, {name: "Name"}, {link: "Link"}
+	]) />
+</cfif>
+
+<!--- Link To Parent --->
+<cfif isDefined("url.link")>
+	<cfset linkResult = application.s.main.setNewParent(url.p, url.link) />
 </cfif>
 
 <!--- View object --->
@@ -64,6 +94,34 @@
 			<cflocation url="?#currentQueryString#" />
 		</cfif>
 	</cfif>
+</cfif>
+
+<!--- Get Parents --->
+<cfset qParents = application.s.main.getParents(url.p) />
+<cfset qPathsToRoot = application.s.main.getAllPathsFromObjectToRoot(url.p) />
+<cfset sPathsToRoot = structNew() />
+<cfloop query="qPathsToRoot">
+	<cfset thisPath =  listRest(qPathsToRoot.path) />
+	<cfset key = listFirst(thisPath) />
+	<cfset reversedPath = listRest(thisPath) />
+	<cfset value = "" />
+	<cfloop from="#listLen(reversedPath)#" to="1" index="i" step="-1">
+		<cfset value = listAppend(value, listGetAt(reversedPath, i)) />
+	</cfloop>
+	<cfif NOT structKeyExists(sPathsToRoot, key)>
+		<cfset structInsert(sPathsToRoot, key, value) />
+	</cfif>
+</cfloop>
+<cfif qParents.recordCount>
+	<cfset qParentsWithLinks = qParents />
+	<cfloop query="qParents">
+		<cfset parentsPath = sPathsToRoot[qParents.id] />
+		<cfset theLink = "<a href=""?p=#qParents.id#&parentName=#urlEncodedFormat(qParents.name)#&path=#parentsPath#"">#qParents.name#</a>" />
+		<cfset querySetCell(qParentsWithLinks, "name", theLink, qParents.currentRow) /> 
+	</cfloop>
+	<cfset parentOutput = application.queryToTable(qParentsWithLinks,	[
+		{name: "Name"}, {children: "Count"}
+	]) />
 </cfif>
 
 <!--- Get objects --->
@@ -96,7 +154,7 @@
 	{object: "Name"}, {type: "Description"}, {children: "Count"}, {view: "View"}, {edit: "Edit"}, {delete: "Delete"}
 ]) />
 
-<!--- Get path objects --->
+<!--- Get: path objects --->
 <cfset aPathObjects = application.s.main.getPathObjects(url.path) />
 
 
@@ -120,7 +178,7 @@
 		<cfset newPath = listAppend(newPath, aPathObjects[i].id) />
 	</cfloop>
 	
-	<!--- Export --->
+	<!--- VIEW: Export button --->
 	<div style="float:right; position:relative">
 		<a href="export.cfm">Export</a>
 	</div>
@@ -169,10 +227,45 @@
 		</cfif>
 	</cfif>
 
+	<!--- VIEW: Object's Parents --->	
+	<cfif qParents.recordCount>
+		<hr />
+		<h3>Parents</h3>
+		#parentOutput#
+	</cfif>
+
+	<!--- VIEW: Link More Parents --->
+	<h3>Link More Parents</h3>
+	<form action="?#currentQueryString#" method="post">
+		Search: <input type="text" name="search">
+		Type:
+		<select name="type">
+			<option value="0">All</option>
+			<cfloop query="qTypes">
+				<option value="#qTypes.id#">#qTypes.name#</option>
+			</cfloop>
+		</select>
+		<input type="submit" name="searchParents" value="Search">
+	</form>
+	<cfif isDefined("searchParentsResults")>
+		<cfif searchParentsResults.recordCount>
+			#parentsSearchResults#
+		<cfelse>
+			<p>No results!</p>
+		</cfif>
+	</cfif>
+	<cfif isDefined("linkResult")>
+		<cfif linkResult>
+			<p style="color: green">The link was created successfully!</p>
+		<cfelse>
+			<p style="color: red">The link didn't work. It probably already exists.</p>
+		</cfif>
+	</cfif>
+
 	<!--- VIEW: Object's Children --->	
-	<hr />
 	<cfif qObjects.recordCount>
-		<h3>Objects</h3>
+		<hr />
+		<h3>Children</h3>
 		<table>
 			<tr>
 				<td valign="top">
@@ -224,7 +317,7 @@
 					</td>
 					<td valign="top">
 						<h4>Edit Object (ID: #editObjectData.id#):</h4>
-						<form action="" method="post">
+						<form action="?#currentQueryString#" method="post">
 							<!--- object fields --->
 							Name: <input type="text" name="name" value="#editObjectData.name#"><br />
 							<!--- meta fields --->
@@ -273,13 +366,12 @@
 				</cfif>
 			</tr>
 		</table>
-
+	</cfif>
 
 	<!--- VIEW: Create New Objects --->
 	<hr />
-	</cfif>
 	<h3>Create Object</h3>
-	<form action="" method="post">
+	<form action="?#currentQueryString#" method="post">
 		Name: <input type="text" name="name">
 		Type:
 		<select name="type">

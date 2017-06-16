@@ -183,6 +183,28 @@ ALTER TABLE [dbo].[join_value] CHECK CONSTRAINT [FK_join_value_join_meta]
 
 
 
+-- ***** FUNCTIONS *****
+ALTER FUNCTION [dbo].[CSVToTable] (@InStr VARCHAR(MAX))
+RETURNS @TempTab TABLE
+   (id int not null)
+AS
+BEGIN
+    ;-- Ensure input ends with comma
+	SET @InStr = REPLACE(@InStr + ',', ',,', ',')
+	DECLARE @SP INT
+DECLARE @VALUE VARCHAR(1000)
+WHILE PATINDEX('%,%', @INSTR ) <> 0
+BEGIN
+   SELECT  @SP = PATINDEX('%,%',@INSTR)
+   SELECT  @VALUE = LEFT(@INSTR , @SP - 1)
+   SELECT  @INSTR = STUFF(@INSTR, 1, @SP, '')
+   INSERT INTO @TempTab(id) VALUES (@VALUE)
+END
+	RETURN
+END
+
+
+
 -- ***** DATA *****
 INSERT INTO type(id, name) VALUES(1, 'root')
 INSERT INTO type(id, name) VALUES(10, 'object')
