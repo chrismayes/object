@@ -1,9 +1,11 @@
 <!---
 	ToDo:
+		after delete parent if the object is orphaned go to next highest object
 		disable link if its already a link
 		When creating a new object have an intermediate page with search results showing possible existing parents (option to select one instead of the one entered in the form)
 		Alternative names for same object
 		File upload for content / view content
+		Show orphaned objects
 --->
 
 <!--- Setup --->
@@ -19,12 +21,22 @@
 </cfif>
 <cfset currentQueryString = "" />
 <cfloop collection="#url#" item="key">
-	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete,link", key)>
+	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete,link,unlink", key)>
 		<cfset currentQueryString = listAppend(currentQueryString, "#lcase(key)#=#urlEncodedFormat(url[key])#", "&") />
 	</cfif>
 </cfloop>
 <cfif listLast(url.path) NEQ url.p>
 	<cfset url.path = listAppend(url.path, url.p) />
+</cfif>
+
+<cfif url.path eq url.p AND url.p neq 1>
+	<cfset qThisPathToRoot = application.s.main.getAllPathsFromObjectToRoot(url.p) />
+	<cfset thisReversePathToRoot = qThisPathToRoot.path />
+	<cfset thisPathToRoot = "" />
+	<cfloop from="#listLen(thisReversePathToRoot)#" to="1" index="i" step="-1">
+		<cfset thisPathToRoot = listAppend(thisPathToRoot, listGetAt(thisReversePathToRoot, i)) />
+	</cfloop>
+	<cfset url.path = thisPathToRoot />
 </cfif>
 
 <!--- Submit add an object --->
@@ -71,6 +83,11 @@
 	<cfset linkResult = application.s.main.setNewParent(url.p, url.link) />
 </cfif>
 
+<!--- Unlink From Parent --->
+<cfif isDefined("url.unlink")>
+	<cfset unlinkResult = application.s.main.deleteParent(url.p, url.unlink) />
+</cfif>
+
 <!--- View object --->
 <cfif isDefined("url.view") AND isNumeric(url.view)>
 	<cfset objectData = application.s.main.getObjectMetaData(url.view)>
@@ -112,15 +129,34 @@
 		<cfset structInsert(sPathsToRoot, key, value) />
 	</cfif>
 </cfloop>
+<cfset reverseUrlPath = "" />
+<cfloop from="#listLen(url.path)#" to="1" index="i" step="-1">
+	<cfset reverseUrlPath = listAppend(reverseUrlPath, listGetAt(url.path, i)) />
+</cfloop>
+<cfset reverseUrlPath = listRest(reverseUrlPath) />
 <cfif qParents.recordCount>
 	<cfset qParentsWithLinks = qParents />
+	<cfset queryAddColumn(qParentsWithLinks, "unlink", "varchar", []) />
 	<cfloop query="qParents">
-		<cfset parentsPath = sPathsToRoot[qParents.id] />
+		<cfset parentInPath = listFind(reverseUrlPath, qParents.id) />
+		<cfif parentInPath>
+			<cfset thisParentPath = "" />
+			<cfloop from="#parentInPath+1#" to="#listLen(reverseUrlPath)#" index="i">
+				<cfset thisParentPath = listPrepend(thisParentPath, listGetAt(reverseUrlPath, i)) />
+			</cfloop>
+			<cfset parentsPath = thisParentPath />
+		<cfelseif structKeyExists(sPathsToRoot, qParents.id)>
+			<cfset parentsPath = sPathsToRoot[qParents.id] />
+		<cfelse>
+			<cfset parentsPath = "" />
+		</cfif> 
 		<cfset theLink = "<a href=""?p=#qParents.id#&parentName=#urlEncodedFormat(qParents.name)#&path=#parentsPath#"">#qParents.name#</a>" />
-		<cfset querySetCell(qParentsWithLinks, "name", theLink, qParents.currentRow) /> 
+		<cfset querySetCell(qParentsWithLinks, "name", theLink, qParents.currentRow) />
+		<cfset unlinkLink = "<a href=""?#currentQueryString#&unlink=#qParents.id#"">Unlink</a>" />
+		<cfset querySetCell(qParentsWithLinks, "unlink", unlinkLink, qParents.currentRow) /> 
 	</cfloop>
 	<cfset parentOutput = application.queryToTable(qParentsWithLinks,	[
-		{name: "Name"}, {children: "Count"}
+		{name: "Name"}, {children: "Count"}, {unlink: "Unlink"}
 	]) />
 </cfif>
 
@@ -232,6 +268,13 @@
 		<hr />
 		<h3>Parents</h3>
 		#parentOutput#
+		<cfif isDefined("unlinkResult")>
+			<cfif unlinkResult>
+				<p style="color: green">The parent was unlinked successfully!</p>
+			<cfelse>
+				<p style="color: red">The parent didn't unlink correctly. It probably didn't exist.</p>
+			</cfif>
+		</cfif>
 	</cfif>
 
 	<!--- VIEW: Link More Parents --->

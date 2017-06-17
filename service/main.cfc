@@ -545,6 +545,25 @@ component output='false' {
 		return true;
 	}
 	
+	public boolean function deleteParent(required numeric objectId, required numeric parentId) {
+		local.exists = getObjectJoin(arguments.objectId, arguments.parentId);
+		if(local.exists.recordCount) {
+			deleteObjectJoinMetaFields(arguments.objectId, arguments.parentId);
+			local.queryService = new Query();
+			local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+			local.queryService.addParam(name = 'parentId', value = arguments.parentId, cfsqltype = 'cf_sql_integer');
+			local.queryService.setSQL("
+				DELETE FROM object_join
+				WHERE parent_id = ( :parentId )
+					AND child_id = ( :objectId )
+			");
+			local.queryService.execute();
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
 	public boolean function setNewParent(required numeric objectId, required numeric parentId, numeric joinType = 1) {
 		local.exists = getObjectJoin(arguments.objectId, arguments.parentId);
 		if(!local.exists.recordCount) {
