@@ -1,11 +1,13 @@
 <!---
 	ToDo:
-		after delete parent if the object is orphaned go to next highest object
-		disable link if its already a link
-		When creating a new object have an intermediate page with search results showing possible existing parents (option to select one instead of the one entered in the form)
-		Alternative names for same object
-		File upload for content / view content
-		Show orphaned objects
+		1) unlink child
+		2) after delete parent if the object is orphaned go to next highest object
+		3) warn if child/parent has been orphaned
+		4) disable 'link' in search results if its already a link of this object
+		5) When creating a new object have an intermediate page with search results showing possible existing parents with option to select one or more instead of the one entered in the form
+		6) Alternative names for an object
+		7) Show orphaned objects
+		8) File upload for content / view content
 --->
 
 <!--- Setup --->
