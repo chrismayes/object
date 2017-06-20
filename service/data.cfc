@@ -1,5 +1,15 @@
 component output='false' {
 
+	public query function getAllAlternativeNames() {
+		local.queryService = new Query();
+		local.queryService.setSQL("
+			SELECT *
+			FROM alternative_names
+			ORDER BY id ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
 	public query function getAllContent() {
 		local.queryService = new Query();
 		local.queryService.setSQL("

@@ -7,6 +7,7 @@
 <cfset output &= "DELETE FROM join_meta" & crlf />
 <cfset output &= "DELETE FROM object_join" & crlf />
 <cfset output &= "DELETE FROM join_type" & crlf />
+<cfset output &= "DELETE FROM alternative_names" & crlf />
 <cfset output &= "DELETE FROM object" & crlf />
 <cfset output &= "DELETE FROM type" & crlf />
 <cfset output &= "DELETE FROM content" & crlf & crlf & crlf />
@@ -14,6 +15,7 @@
 <cfset output &= "/* Select statements for checking data after import:" & crlf />
 <cfset output &= "SELECT * FROM type" & crlf />
 <cfset output &= "SELECT * FROM object" & crlf />
+<cfset output &= "SELECT * FROM alternative_names" & crlf />
 <cfset output &= "SELECT * FROM join_type" & crlf />
 <cfset output &= "SELECT * FROM object_join" & crlf />
 <cfset output &= "SELECT * FROM join_meta" & crlf />
@@ -53,6 +55,14 @@
 	<cfset output &= "INSERT INTO object (id, name, type_id) VALUES (#qObjects.id#, '#application.escapeSQL(qObjects.name)#', #qObjects.type_id#)" & crlf />
 </cfloop>
 <cfset output &= "SET IDENTITY_INSERT object OFF" & crlf />
+
+<cfset qAlternativeNames = application.s.data.getAllAlternativeNames() />
+<cfset output &= crlf & "--Table: alternative_names" & crlf />
+<cfset output &= "SET IDENTITY_INSERT alternative_names ON" & crlf />
+<cfloop query="qAlternativeNames">
+	<cfset output &= "INSERT INTO alternative_names (id, object_id, name) VALUES (#qAlternativeNames.id#, #qAlternativeNames.object_id#, '#application.escapeSQL(qAlternativeNames.name)#')" & crlf />
+</cfloop>
+<cfset output &= "SET IDENTITY_INSERT alternative_names OFF" & crlf />
 
 <cfset qMetas = application.s.data.getAllMetas() />
 <cfset output &= crlf & "--Table: meta" & crlf />

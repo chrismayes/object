@@ -1,3 +1,25 @@
+-- ***** FUNCTIONS *****
+CREATE FUNCTION [dbo].[CSVToTable] (@InStr VARCHAR(MAX))
+RETURNS @TempTab TABLE
+   (id int not null)
+AS
+BEGIN
+    ;-- Ensure input ends with comma
+	SET @InStr = REPLACE(@InStr + ',', ',,', ',')
+	DECLARE @SP INT
+DECLARE @VALUE VARCHAR(1000)
+WHILE PATINDEX('%,%', @INSTR ) <> 0
+BEGIN
+   SELECT  @SP = PATINDEX('%,%',@INSTR)
+   SELECT  @VALUE = LEFT(@INSTR , @SP - 1)
+   SELECT  @INSTR = STUFF(@INSTR, 1, @SP, '')
+   INSERT INTO @TempTab(id) VALUES (@VALUE)
+END
+	RETURN
+END
+
+
+
 -- ***** TABLES *****
 
 --CONTENT
@@ -45,6 +67,22 @@ CREATE TABLE [dbo].[object](
 ALTER TABLE [dbo].[object]  WITH CHECK ADD  CONSTRAINT [FK_object_type] FOREIGN KEY([type_id])
 REFERENCES [dbo].[type] ([id])
 ALTER TABLE [dbo].[object] CHECK CONSTRAINT [FK_object_type]
+
+
+
+--ALTERNATIVE_NAMES
+CREATE TABLE [dbo].[alternative_names](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[object_id] [int] NOT NULL,
+	[name] [nvarchar](max) NOT NULL,
+ CONSTRAINT [PK_alternative_names] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+ALTER TABLE [dbo].[alternative_names]  WITH CHECK ADD  CONSTRAINT [FK_alternative_names_object] FOREIGN KEY([object_id])
+REFERENCES [dbo].[object] ([id])
+ALTER TABLE [dbo].[alternative_names] CHECK CONSTRAINT [FK_alternative_names_object]
 
 
 
@@ -183,28 +221,6 @@ ALTER TABLE [dbo].[join_value] CHECK CONSTRAINT [FK_join_value_join_meta]
 
 
 
--- ***** FUNCTIONS *****
-ALTER FUNCTION [dbo].[CSVToTable] (@InStr VARCHAR(MAX))
-RETURNS @TempTab TABLE
-   (id int not null)
-AS
-BEGIN
-    ;-- Ensure input ends with comma
-	SET @InStr = REPLACE(@InStr + ',', ',,', ',')
-	DECLARE @SP INT
-DECLARE @VALUE VARCHAR(1000)
-WHILE PATINDEX('%,%', @INSTR ) <> 0
-BEGIN
-   SELECT  @SP = PATINDEX('%,%',@INSTR)
-   SELECT  @VALUE = LEFT(@INSTR , @SP - 1)
-   SELECT  @INSTR = STUFF(@INSTR, 1, @SP, '')
-   INSERT INTO @TempTab(id) VALUES (@VALUE)
-END
-	RETURN
-END
-
-
-
 -- ***** DATA *****
 INSERT INTO type(id, name) VALUES(1, 'root')
 INSERT INTO type(id, name) VALUES(10, 'object')
@@ -235,6 +251,7 @@ DROP TABLE object_join
 DROP TABLE join_type
 DROP TABLE value
 DROP TABLE meta
+DROP TABLE alternative_names
 DROP TABLE object
 DROP TABLE type
 DROP TABLE content
