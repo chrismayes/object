@@ -20,6 +20,78 @@ END
 
 
 
+CREATE FUNCTION [dbo].[StringListToTable] (@InStr VARCHAR(MAX))
+RETURNS @TempTab TABLE
+   (text VARCHAR(MAX) not null)
+AS
+BEGIN
+    ;-- Ensure input ends with comma
+	SET @InStr = REPLACE(@InStr + ',', ',,', ',')
+	DECLARE @SP INT
+DECLARE @VALUE VARCHAR(1000)
+WHILE PATINDEX('%,%', @INSTR ) <> 0
+BEGIN
+   SELECT  @SP = PATINDEX('%,%',@INSTR)
+   SELECT  @VALUE = LEFT(@INSTR , @SP - 1)
+   SELECT  @INSTR = STUFF(@INSTR, 1, @SP, '')
+   INSERT INTO @TempTab(text) VALUES (@VALUE)
+END
+	RETURN
+END
+
+
+
+CREATE function [dbo].[LEVENSHTEIN]( @left varchar(100), @right varchar(100) ) 
+   returns int
+as
+BEGIN
+   DECLARE @difference int, @lenRight int, @lenLeft int, @leftIndex int, @rightIndex int,   @left_char char(1), @right_char char(1), @compareLength int 
+   SET @lenLeft = LEN(@left) 
+   SET @lenRight = LEN(@right) 
+   SET @difference = 0  
+   If @lenLeft = 0 
+   BEGIN
+      SET @difference = @lenRight GOTO done 
+   END
+   If @lenRight = 0 
+   BEGIN
+      SET @difference = @lenLeft 
+      GOTO done 
+   END 
+   GOTO comparison  
+ 
+   comparison: 
+   IF (@lenLeft >= @lenRight) 
+      SET @compareLength = @lenLeft 
+   Else
+      SET @compareLength = @lenRight  
+   SET @rightIndex = 1 
+   SET @leftIndex = 1 
+   WHILE @leftIndex <= @compareLength 
+   BEGIN
+      SET @left_char = substring(@left, @leftIndex, 1)
+      SET @right_char = substring(@right, @rightIndex, 1)
+      IF @left_char <> @right_char 
+      BEGIN -- Would an insertion make them re-align? 
+         IF(@left_char = substring(@right, @rightIndex+1, 1))    
+            SET @rightIndex = @rightIndex + 1 
+         -- Would an deletion make them re-align? 
+         ELSE
+            IF(substring(@left, @leftIndex+1, 1) = @right_char)
+               SET @leftIndex = @leftIndex + 1
+               SET @difference = @difference + 1 
+      END
+      SET @leftIndex = @leftIndex + 1 
+      SET @rightIndex = @rightIndex + 1 
+   END 
+   GOTO done  
+ 
+   done: 
+      RETURN @difference 
+END
+
+
+
 -- ***** TABLES *****
 
 --CONTENT

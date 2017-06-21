@@ -43,8 +43,13 @@
 
 <!--- Submit add an object --->
 <cfif isDefined("form.newObject")>
-	<cfif NOT application.s.main.setObject(argumentCollection=form)>
-		<cfoutput><span style="color: red">New object creation failed!</span><br /><br /></cfoutput>
+	<cfset qSearchResults = application.s.main.searchObjectNames(form.name, trim(listAppend(form.children, form.parent))) />
+	<cfif qSearchResults.recordCount eq	0>
+		<cfif NOT application.s.main.setObject(argumentCollection=form)>
+			<cfoutput><span style="color: red">New object creation failed!</span><br /><br /></cfoutput>
+		</cfif>
+	<cfelse>
+		<cfdump var="#qSearchResults#"><cfabort>
 	</cfif>
 </cfif>
 
@@ -425,6 +430,7 @@
 			</cfloop>
 		</select>
 		<input type="hidden" name="parent" value="#url.p#">
+		<input type="hidden" name="children" value="#valueList(qObjects.id)#">
 		<input type="submit" name="newObject" value="Create">
 	</form>
 </cfoutput>

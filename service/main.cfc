@@ -545,6 +545,30 @@ component output='false' {
 		return true;
 	}
 	
+	public query function searchObjectNames(required string term, string exclude = '') {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'term', value = trim(arguments.term), cfsqltype = 'cf_sql_varchar');
+		local.queryService.addParam(name = 'exclude', value = arguments.exclude, cfsqltype = 'cf_sql_varchar', null=arguments.exclude == '');
+		local.queryService.setSQL("
+			SELECT id, name, lev, (select max(id) from dbo.CSVToTable(concat( len(name), ',', len( ( :term ) )))) as x, ( :exclude ) as d
+			FROM (
+				SELECT id, name, dbo.levenshtein(name, ( ( :term ) ) ) AS lev, replace(name, ' ', ',') as list
+				FROM object
+				UNION
+				SELECT object_id as id, name, dbo.levenshtein(name, ( ( :term ) ) ) AS lev, replace(name, ' ', ',') as list
+				FROM alternative_names
+				) AS dt
+			WHERE ( ( :exclude ) is NULL OR id NOT IN ( SELECT id FROM dbo.CSVToTable(( :exclude )) ) )
+			AND (
+				lev <= ( SELECT max(id) * 0.25 FROM dbo.CSVToTable(concat( len(name), ',', len(( :term )))))
+				OR ( :term ) IN (SELECT text FROM dbo.StringListToTable(list))
+				OR charindex(( :term ), name) > 0
+			)
+			ORDER BY lev ASC, name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
 	public boolean function deleteParent(required numeric objectId, required numeric parentId) {
 		local.exists = getObjectJoin(arguments.objectId, arguments.parentId);
 		if(local.exists.recordCount) {
