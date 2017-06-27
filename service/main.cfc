@@ -293,24 +293,57 @@ component output='false' {
 			local.queryService.addParam(name = 'parentTypeId', null=true);
 		}
 		local.queryService.setSQL("
-			SELECT
-				o.id, p.name AS parent, o.name AS object, ot.name AS type,
-				count(oj2.child_id) AS children
-			FROM object p
-			INNER JOIN object_join oj ON oj.parent_id = p.id
-			INNER JOIN type pt ON pt.id = p.type_id
+			SELECT dt.id, dt.parent, dt.object, dt.type, CAST(dt.children as nvarchar(max)) AS children,
+				CAST(count(oj3.parent_id) as nvarchar(max)) AS parents
+			FROM (
+				SELECT
+					o.id, p.name AS parent, o.name AS object, ot.name AS type,
+					count(oj2.child_id) AS children
+				FROM object p
+				INNER JOIN object_join oj ON oj.parent_id = p.id
+				INNER JOIN type pt ON pt.id = p.type_id
+				INNER JOIN object o ON o.id = oj.child_id
+				INNER JOIN type ot ON ot.id = o.type_id
+				LEFT JOIN object_join oj2 ON oj2.parent_id = o.id
+				WHERE (( :objectName ) IS NULL OR o.name = ( :objectName ))
+					AND (( :objectId ) IS NULL OR o.id = ( :objectId ))
+					AND (( :parentName ) IS NULL OR p.name = ( :parentName ))
+					AND (( :parentId ) IS NULL OR p.id = ( :parentId ))
+					AND (( :objectTypeName ) IS Null OR ot.name = ( :objectTypeName ))
+					AND (( :objectTypeId ) IS Null OR ot.id = ( :objectTypeId ))
+					AND (( :parentTypeName ) IS Null OR pt.name = ( :parentTypeName ))
+					AND (( :parentTypeId ) IS Null OR pt.id = ( :parentTypeId ))
+				GROUP BY o.id, p.name, o.name, ot.name
+			) AS dt
+			LEFT JOIN object_join oj3 ON oj3.child_id = dt.id
+			GROUP BY dt.id, dt.parent, dt.object, dt.type, dt.children
+			ORDER BY dt.object ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getParentNames(required numeric objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT o.id, o.name
+			FROM object_join oj
+			INNER JOIN object o ON o.id = oj.parent_id
+			WHERE oj.child_id = ( :objectId )
+				AND oj.parent_id != 1
+			ORDER BY o.name ASC
+		");
+		return local.queryService.execute().getResult();
+	}
+
+	public query function getChildNames(required numeric objectId) {
+		local.queryService = new Query();
+		local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+		local.queryService.setSQL("
+			SELECT o.id, o.name
+			FROM object_join oj
 			INNER JOIN object o ON o.id = oj.child_id
-			INNER JOIN type ot ON ot.id = o.type_id
-			LEFT JOIN object_join oj2 ON oj2.parent_id = o.id
-			WHERE (( :objectName ) IS NULL OR o.name = ( :objectName ))
-				AND (( :objectId ) IS NULL OR o.id = ( :objectId ))
-				AND (( :parentName ) IS NULL OR p.name = ( :parentName ))
-				AND (( :parentId ) IS NULL OR p.id = ( :parentId ))
-				AND (( :objectTypeName ) IS Null OR ot.name = ( :objectTypeName ))
-				AND (( :objectTypeId ) IS Null OR ot.id = ( :objectTypeId ))
-				AND (( :parentTypeName ) IS Null OR pt.name = ( :parentTypeName ))
-				AND (( :parentTypeId ) IS Null OR pt.id = ( :parentTypeId ))
-			GROUP BY o.id, p.name, o.name, ot.name
+			WHERE oj.parent_id = ( :objectId )
 			ORDER BY o.name ASC
 		");
 		return local.queryService.execute().getResult();
@@ -580,6 +613,25 @@ component output='false' {
 				DELETE FROM object_join
 				WHERE parent_id = ( :parentId )
 					AND child_id = ( :objectId )
+			");
+			local.queryService.execute();
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	public boolean function deleteChild(required numeric objectId, required numeric childId) {
+		local.exists = getObjectJoin(arguments.childId, arguments.objectId);
+		if(local.exists.recordCount) {
+			deleteObjectJoinMetaFields(arguments.childId, arguments.objectId);
+			local.queryService = new Query();
+			local.queryService.addParam(name = 'objectId', value = arguments.objectId, cfsqltype = 'cf_sql_integer');
+			local.queryService.addParam(name = 'childId', value = arguments.childId, cfsqltype = 'cf_sql_integer');
+			local.queryService.setSQL("
+				DELETE FROM object_join
+				WHERE parent_id = ( :objectId )
+					AND child_id = ( :childId )
 			");
 			local.queryService.execute();
 			return true;

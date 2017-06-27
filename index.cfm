@@ -1,21 +1,21 @@
 <!---
 	ToDo:
-		1) unlink child
-		2) after delete parent if the object is orphaned go to next highest object
-		3) warn if child/parent has been orphaned
-		4) disable 'link' in search results if its already a link of this object
-		5) When creating a new object have an intermediate page with search results showing possible existing parents with option to select one or more instead of the one entered in the form
-		6) Alternative names for an object
-		7) Show orphaned objects
-		8) File upload for content / view content
+		- after delete parent if the object is orphaned go to next highest object
+		- warn if child/parent has been orphaned
+		- disable 'link' in search results if its already a link of this object
+		- When creating a new object have an intermediate page with search results showing possible existing parents with option to select one or more instead of the one entered in the form
+		- Alternative names for an object
+		- Show orphaned objects
+		- File upload for content / view content
+		- add "are you sure" to all deletes and unlinks
 --->
 
 <!--- Setup --->
-<cfparam name="url.o" default="" /><!--- object --->
-<cfparam name="url.p" default="" /><!--- parent --->
-<cfparam name="url.ot" default="" /><!--- object type --->
-<cfparam name="url.pt" default="" /><!--- parent type --->
-<cfparam name="url.path" default="" /><!--- parent type --->
+<cfparam name="url.o" default="" />
+<cfparam name="url.p" default="" />
+<cfparam name="url.ot" default="" />
+<cfparam name="url.pt" default="" />
+<cfparam name="url.path" default="" />
 <cfparam name="url.parentName" default="#application.rootName#" />
 <cfif len(url.o) eq 0 AND len(url.p) eq 0 AND len(url.ot) eq 0 AND len(url.pt) eq 0>
 	<cfset url.p = 1 />
@@ -23,7 +23,7 @@
 </cfif>
 <cfset currentQueryString = "" />
 <cfloop collection="#url#" item="key">
-	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete,link,unlink", key)>
+	<cfif len(url[key]) AND NOT listFindNoCase("view,edit,delete,link,unlink,unlinkchild,showChildren,showParents", key)>
 		<cfset currentQueryString = listAppend(currentQueryString, "#lcase(key)#=#urlEncodedFormat(url[key])#", "&") />
 	</cfif>
 </cfloop>
@@ -44,7 +44,7 @@
 <!--- Submit add an object --->
 <cfif isDefined("form.newObject")>
 	<cfset qSearchResults = application.s.main.searchObjectNames(form.name, trim(listAppend(form.children, form.parent))) />
-	<cfif qSearchResults.recordCount eq	0>
+	<cfif qSearchResults.recordCount eq	0 || true>
 		<cfif NOT application.s.main.setObject(argumentCollection=form)>
 			<cfoutput><span style="color: red">New object creation failed!</span><br /><br /></cfoutput>
 		</cfif>
@@ -58,8 +58,6 @@
 	<cfif NOT application.s.main.editObject(argumentCollection=form)>
 		<cfoutput><span style="color: red">Object update failed!</span><br /><br /></cfoutput>
 	</cfif>
-	<cfdump var="#url#">
-	<cfdump var="#form#">
 	<cflocation url="?#currentQueryString#&view=#form.id#" addToken="false" />
 </cfif>
 
@@ -95,6 +93,11 @@
 	<cfset unlinkResult = application.s.main.deleteParent(url.p, url.unlink) />
 </cfif>
 
+<!--- Unlink Child --->
+<cfif isDefined("url.unlinkchild")>
+	<cfset unlinkResult = application.s.main.deleteChild(url.p, url.unlinkchild) />
+</cfif>
+
 <!--- View object --->
 <cfif isDefined("url.view") AND isNumeric(url.view)>
 	<cfset objectData = application.s.main.getObjectMetaData(url.view)>
@@ -118,6 +121,16 @@
 			<cflocation url="?#currentQueryString#" />
 		</cfif>
 	</cfif>
+</cfif>
+
+<!--- Objects parents --->
+<cfif isDefined("url.showParents")>
+	<cfset qParentNames = application.s.main.getParentNames(url.showParents)>
+</cfif>
+
+<!--- Objects children --->
+<cfif isDefined("url.showChildren")>
+	<cfset qChildNames = application.s.main.getChildNames(url.showChildren)>
 </cfif>
 
 <!--- Get Parents --->
@@ -178,14 +191,33 @@
 <cfset qObjectsWithLinks = qObjects />
 <cfset queryAddColumn(qObjectsWithLinks, "view", "varchar", []) />
 <cfset queryAddColumn(qObjectsWithLinks, "edit", "varchar", []) />
+<cfset queryAddColumn(qObjectsWithLinks, "unlinkchild", "varchar", []) />
 <cfset queryAddColumn(qObjectsWithLinks, "delete", "varchar", []) />
 <cfloop query="qObjects">
+	<cfif qObjects.parents[qObjects.currentRow] gt 1>
+		<cfset showParentsLink = "<a href=""?#currentQueryString#&showParents=#qObjects.id[qObjects.currentRow]#"">#qObjects.parents[qObjects.currentRow]#</a>" />
+		<cfset querySetCell(qObjectsWithLinks, "parents", showParentsLink, qObjects.currentRow) /> 
+	</cfif>
+
+	<cfif qObjects.children[qObjects.currentRow] gt 0>
+		<cfset showChildrenLink = "<a href=""?#currentQueryString#&showChildren=#qObjects.id[qObjects.currentRow]#"">#qObjects.children[qObjects.currentRow]#</a>" />
+		<cfset querySetCell(qObjectsWithLinks, "children", showChildrenLink, qObjects.currentRow) /> 
+	</cfif>
+
 	<cfset theLink = "<a href=""?p=#id#&parentName=#urlEncodedFormat(qObjects.object[qObjects.currentRow])#&path=#url.path#"">#qObjects.object[qObjects.currentRow]#</a>" />
 	<cfset querySetCell(qObjectsWithLinks, "object", theLink, qObjects.currentRow) /> 
 	<cfset viewLink = "<a href=""?#currentQueryString#&view=#qObjects.id[qObjects.currentRow]#"">View</a>" />
 	<cfset querySetCell(qObjectsWithLinks, "view", viewLink, qObjects.currentRow) /> 
 	<cfset editLink = "<a href=""?#currentQueryString#&edit=#qObjects.id[qObjects.currentRow]#"">Edit</a>" />
 	<cfset querySetCell(qObjectsWithLinks, "edit", editLink, qObjects.currentRow) /> 
+
+	<cfif qObjects.parents[qObjects.currentRow] gt 1>
+		<cfset unlinkChildLink = "<a href=""?#currentQueryString#&unlinkchild=#qObjects.id[qObjects.currentRow]#"">Unlink</a>" />
+	<cfelse>
+		<cfset unlinkChildLink = "<span style=""color: silver"">Unlink</span>" />
+	</cfif>
+	<cfset querySetCell(qObjectsWithLinks, "unlinkchild", unlinkChildLink, qObjects.currentRow) /> 
+
 	<cfif qObjects.children[qObjects.currentRow] eq 0>
 		<cfset deleteLink = "<a href=""?#currentQueryString#&delete=#qObjects.id[qObjects.currentRow]#"">Delete</a>" />
 	<cfelse>
@@ -194,7 +226,7 @@
 	<cfset querySetCell(qObjectsWithLinks, "delete", deleteLink, qObjects.currentRow) /> 
 </cfloop>
 <cfset output = application.queryToTable(qObjectsWithLinks,	[
-	{object: "Name"}, {type: "Description"}, {children: "Count"}, {view: "View"}, {edit: "Edit"}, {delete: "Delete"}
+	{object: "Name"}, {type: "Description"}, {parents: "Parents"}, {children: "Children"}, {view: "View"}, {edit: "Edit"}, {delete: "Delete"}, {unlinkchild: "Unlink"}
 ]) />
 
 <!--- Get: path objects --->
@@ -321,6 +353,29 @@
 				<td valign="top">
 					#output#
 				</td>
+
+				<!--- Show Parents --->
+				<cfif isDefined("url.showParents")>
+					<td width="20">
+					</td>
+					<td valign="top">
+						<cfloop query="qParentNames">
+							#name# (#id#)<br />
+						</cfloop>
+					</td>
+				</cfif>
+
+				<!--- Show Children --->
+				<cfif isDefined("url.showChildren")>
+					<td width="20">
+					</td>
+					<td valign="top">
+						<cfloop query="qChildNames">
+							#name# (#id#)<br />
+						</cfloop>
+					</td>
+				</cfif>
+
 				<!--- View Object --->
 				<cfif isDefined("objectData") AND NOT structIsEmpty(objectData)>
 					<td width="20">
